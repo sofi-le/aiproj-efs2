@@ -1,0 +1,12 @@
+# secrets: never upload these
+gcp-oauth.keys.json
+hat_ask/secrets.h
+.env
+
+# personal data: voice recordings, photos, the log
+logs/
+last_*
+
+# junk
+__pycache__/
+.DS_Store

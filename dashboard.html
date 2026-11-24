@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Assistant Log</title>
+<style>
+  :root {
+    --bg: #f4f3ef; --panel: #ffffff; --ink: #1c1d1f; --muted: #6a6d73; --line: #dddbd3;
+    --accent: #f2b705; --accent-ink: #1c1d1f;
+    --note: #1f7a4d; --translation: #2563a8; --question: #6a6d73; --photo: #a8521a; --bad: #b3261e; --light: #9a6b00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15171a; --panel: #1f2226; --ink: #ecebe6; --muted: #9a9da3; --line: #33373d;
+      --note: #5fd39a; --translation: #7fb4f0; --question: #9a9da3; --photo: #f0a268; --bad: #ff8a80; --light: #f2c94c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  header { background: var(--accent); color: var(--accent-ink); padding: 14px 16px;
+           display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 19px; letter-spacing: .02em; }
+  #device { margin-left: auto; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  #device i { width: 10px; height: 10px; border-radius: 50%; background: #7a5c00; display: inline-block; }
+  #device.on i { background: #0f7a3d; box-shadow: 0 0 0 3px rgba(15,122,61,.25); }
+  main { max-width: 980px; margin: 0 auto; padding: 16px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .tile b { display: block; font-size: 24px; font-variant-numeric: tabular-nums; }
+  .tile span { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+           padding: 12px; margin-top: 12px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  input[type=text], input[type=search], input[type=date] {
+    flex: 1; min-width: 160px; padding: 9px 11px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--bg); color: var(--ink); font: inherit; }
+  input[type=date] { flex: 0 0 auto; min-width: 0; }
+  button, .btn { padding: 9px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel);
+           color: var(--ink); font: inherit; font-weight: 600; cursor: pointer; text-decoration: none; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+  button:disabled { opacity: .55; cursor: wait; }
+  .chip { padding: 5px 12px; border-radius: 999px; font-size: 13px; }
+  .chip.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  #report { white-space: pre-wrap; margin: 10px 0 0; font: inherit; display: none;
+            border-top: 1px solid var(--line); padding-top: 10px; }
+  .msg { color: var(--muted); font-size: 13px; }
+  .msg.bad { color: var(--bad); }
+  .entry { background: var(--panel); border: 1px solid var(--line); border-left: 5px solid var(--question);
+           border-radius: 10px; padding: 12px; margin-top: 10px; display: flex; gap: 12px; }
+  .entry.note { border-left-color: var(--note); }
+  .entry.translation { border-left-color: var(--translation); }
+  .entry.light { border-left-color: var(--light); }
+  .entry .body { flex: 1; min-width: 0; }
+  .meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 12px; color: var(--muted); }
+  .tag { font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+  .tag.note { color: var(--note); } .tag.translation { color: var(--translation); }
+  .tag.photo { color: var(--photo); } .tag.light { color: var(--light); }
+  .heard { margin: 6px 0 2px; font-weight: 600; overflow-wrap: anywhere; }
+  .say { margin: 0; overflow-wrap: anywhere; }
+  .show { display: inline-block; margin-top: 6px; padding: 2px 8px; border-radius: 6px;
+          background: var(--bg); border: 1px solid var(--line); font-size: 13px;
+          font-family: ui-monospace, Menlo, monospace; }
+  .players { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .players button { padding: 4px 10px; font-size: 12px; font-weight: 500; }
+  .players button.del, #clearbtn { color: var(--bad); }
+  .players button.del { margin-left: auto; }
+  .thumb { width: 120px; height: 90px; object-fit: cover; border-radius: 8px; cursor: zoom-in;
+           border: 1px solid var(--line); flex: none; }
+  #empty { text-align: center; color: var(--muted); padding: 40px 10px; }
+  #zoom { position: fixed; inset: 0; background: rgba(0,0,0,.85); display: none;
+          align-items: center; justify-content: center; cursor: zoom-out; padding: 16px; }
+  #zoom img { max-width: 100%; max-height: 100%; border-radius: 8px; }
+  @media (max-width: 560px) { .entry { flex-direction: column; } .thumb { width: 100%; height: 160px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>AI Assistant Log</h1>
+  <div id="device"><i></i><span>Device: no contact yet</span></div>
+</header>
+
+<main>
+  <div class="tiles">
+    <div class="tile"><b id="t-total">0</b><span>Today</span></div>
+    <div class="tile"><b id="t-note">0</b><span>Notes</span></div>
+    <div class="tile"><b id="t-translation">0</b><span>Translations</span></div>
+    <div class="tile"><b id="t-photo">0</b><span>Photos</span></div>
+    <div class="tile"><b id="t-speed">–</b><span>Avg reply (s)</span></div>
+  </div>
+
+  <div class="panel">
+    <form class="row" id="askform">
+      <input type="text" id="asktext" placeholder="Type a question or a note (no device needed)..." autocomplete="off">
+      <button class="primary" id="askbtn">Ask</button>
+    </form>
+    <div class="msg" id="askmsg"></div>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <input type="date" id="day">
+      <button id="reportbtn">Write daily report</button>
+      <a class="btn" href="/api/export.csv">Export CSV</a>
+      <button id="clearbtn">Delete all logs</button>
+      <span class="msg" id="reportmsg"></span>
+    </div>
+    <pre id="report"></pre>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <button class="chip on" data-f="all">All</button>
+      <button class="chip" data-f="note">Notes</button>
+      <button class="chip" data-f="translation">Translations</button>
+      <button class="chip" data-f="light">Light</button>
+      <button class="chip" data-f="question">Questions</button>
+      <button class="chip" data-f="photo">With photo</button>
+      <input type="search" id="search" placeholder="Search the log...">
+    </div>
+  </div>
+
+  <div id="feed"></div>
+  <div id="empty">Nothing logged yet. Hold the button and ask something.</div>
+</main>
+
+<div id="zoom"><img alt="Photo from the device"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+let entries = [], filter = "all", lastKey = "";
+const player = new Audio();
+
+function today() {
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+$("day").value = today();
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+function play(file) { player.src = "/media/" + file; player.play(); }
+
+function render() {
+  const day = today();
+  const todays = entries.filter(e => e.time.startsWith(day));
+  $("t-total").textContent = todays.length;
+  $("t-note").textContent = todays.filter(e => e.kind === "note").length;
+  $("t-translation").textContent = todays.filter(e => e.kind === "translation").length;
+  $("t-photo").textContent = todays.filter(e => e.photo).length;
+  $("t-speed").textContent = todays.length
+    ? (todays.reduce((s, e) => s + e.seconds, 0) / todays.length).toFixed(1) : "–";
+
+  const q = $("search").value.trim().toLowerCase();
+  const shown = entries.filter(e =>
+    (filter === "all" || (filter === "photo" ? e.photo : e.kind === filter)) &&
+    (!q || (e.heard + " " + e.say + " " + e.show).toLowerCase().includes(q))
+  ).slice().reverse();
+
+  const feed = $("feed");
+  feed.replaceChildren();
+  for (const e of shown) {
+    const card = el("div", "entry " + e.kind);
+    const body = el("div", "body");
+    const meta = el("div", "meta");
+    meta.append(el("span", "tag " + e.kind, e.kind));
+    if (e.photo) meta.append(el("span", "tag photo", "photo"));
+    if (e.calendar) meta.append(el("span", "tag note", "on calendar"));
+    meta.append(el("span", "", e.time.replace("T", " ")));
+    meta.append(el("span", "", e.source === "dashboard" ? "typed" : "voice"));
+    meta.append(el("span", "", e.seconds + " s"));
+    body.append(meta);
+    body.append(el("p", "heard", e.heard || "(nothing heard)"));
+    body.append(el("p", "say", e.say));
+    if (e.show) body.append(el("span", "show", e.show));
+    const players = el("div", "players");
+    if (e.audio) {
+      const b = el("button", "", "Play recording");
+      b.onclick = () => play(e.id + ".wav");
+      players.append(b);
+    }
+    const r = el("button", "", "Play reply");
+    r.onclick = () => play(e.id + "_reply.wav");
+    players.append(r);
+    const del = el("button", "del", "Delete");
+    del.onclick = async () => {
+      if (!confirm("Delete this entry and its audio/photo? This cannot be undone.")) return;
+      del.disabled = true;
+      const res = await fetch("/api/log/" + e.id, { method: "DELETE" });
+      if (!res.ok) { alert("Could not delete this entry."); del.disabled = false; return; }
+      refresh();
+    };
+    players.append(del);
+    body.append(players);
+    card.append(body);
+    if (e.photo) {
+      const img = el("img", "thumb");
+      img.src = "/media/" + e.id + ".jpg";
+      img.alt = "Photo taken with this question";
+      img.loading = "lazy";
+      img.onclick = () => { $("zoom").firstElementChild.src = img.src; $("zoom").style.display = "flex"; };
+      card.append(img);
+    }
+    feed.append(card);
+  }
+  $("empty").style.display = shown.length ? "none" : "block";
+  $("empty").textContent = entries.length
+    ? "Nothing matches this filter."
+    : "Nothing logged yet. Hold the button and ask something.";
+}
+
+async function refresh() {
+  try {
+    const d = await (await fetch("/api/log")).json();
+    const dev = $("device"), s = d.device_seconds_ago;
+    dev.className = s !== null && s < 120 ? "on" : "";
+    dev.lastElementChild.textContent = s === null ? "Device: no contact yet"
+      : s < 60 ? "Device: active just now"
+      : "Device: last heard " + Math.round(s / 60) + " min ago";
+    const key = d.entries.length + ":" + (d.entries.at(-1)?.id || "");
+    if (key !== lastKey) { lastKey = key; entries = d.entries; render(); }
+  } catch (err) {
+    $("device").className = "";
+    $("device").lastElementChild.textContent = "Server not reachable";
+  }
+}
+
+document.querySelectorAll(".chip").forEach(c => c.onclick = () => {
+  document.querySelectorAll(".chip").forEach(x => x.classList.remove("on"));
+  c.classList.add("on");
+  filter = c.dataset.f;
+  render();
+});
+$("search").oninput = render;
+$("zoom").onclick = () => $("zoom").style.display = "none";
+
+$("clearbtn").onclick = async () => {
+  if (!entries.length) return;
+  if (!confirm("Delete all " + entries.length + " log entries with their audio and photos? This cannot be undone.")) return;
+  const res = await fetch("/api/log", { method: "DELETE" });
+  if (!res.ok) { alert("Could not delete the logs."); return; }
+  refresh();
+};
+
+$("askform").onsubmit = async ev => {
+  ev.preventDefault();
+  const text = $("asktext").value.trim();
+  if (!text) return;
+  $("askbtn").disabled = true;
+  $("askmsg").className = "msg";
+  $("askmsg").textContent = "Thinking...";
+  try {
+    const r = await fetch("/api/ask-text", { method: "POST", headers: { "Content-Type": "application/json" },
+                                             body: JSON.stringify({ text }) });
+    if (!r.ok) throw new Error("server said " + r.status);
+    const e = await r.json();
+    $("asktext").value = "";
+    $("askmsg").textContent = "";
+    await refresh();
+    play(e.id + "_reply.wav");
+  } catch (err) {
+    $("askmsg").className = "msg bad";
+    $("askmsg").textContent = "Could not get an answer (" + err.message + "). Check the server terminal.";
+  }
+  $("askbtn").disabled = false;
+};
+
+$("reportbtn").onclick = async () => {
+  const btn = $("reportbtn"), msg = $("reportmsg"), out = $("report");
+  btn.disabled = true;
+  msg.className = "msg";
+  msg.textContent = "Writing report...";
+  try {
+    const r = await fetch("/api/report", { method: "POST", headers: { "Content-Type": "application/json" },
+                                           body: JSON.stringify({ day: $("day").value }) });
+    if (r.status === 404) throw new Error("nothing logged on that day");
+    if (!r.ok) throw new Error("server said " + r.status);
+    const d = await r.json();
+    out.textContent = d.report;
+    out.style.display = "block";
+    msg.textContent = "From " + d.entries + " entries. Saved in the logs folder.";
+  } catch (err) {
+    msg.className = "msg bad";
+    msg.textContent = "No report: " + err.message + ".";
+  }
+  btn.disabled = false;
+};
+
+refresh();
+setInterval(refresh, 2000);
+</script>
+</body>
+</html>
